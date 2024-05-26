@@ -1,0 +1,6 @@
+.DS_Store
+logs/
+minio/.minio.sys/
+pgadmin/data/
+dags/__pycache__/
+myjupyter/.ipynb_checkpoints/
