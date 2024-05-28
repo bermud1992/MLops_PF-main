@@ -317,7 +317,17 @@ services:
       - 8888:8888
     volumes:
       - ./myjupyter:/work
-      
+
+  streamlit:
+    build:
+      context: ./streamlit
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./streamlit:/app
+    command: streamlit run --server.port 8082 app.py
+    
 volumes:
   postgres-db-volume:
   mysql-db-volume:
