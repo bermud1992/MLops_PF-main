@@ -9,3 +9,4 @@ requests == 2.32.2
 scikit-learn == 1.2.2
 scipy == 1.13.1
 shap == 0.45.1
+category-encoders==2.6.3
