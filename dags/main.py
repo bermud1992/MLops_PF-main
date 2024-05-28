@@ -9,50 +9,65 @@ import mysql.connector
 import pandas as pd
 import requests
 from io import StringIO
-from sqlalchemy import create_engine
-from sklearn.compose import ColumnTransformer
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sqlalchemy import create_engine, inspect
+import logging
+from category_encoders import TargetEncoder
+from sklearn.compose import make_column_transformer, ColumnTransformer
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
+from sklearn.linear_model import ElasticNet
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
-from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeRegressor
+from scipy.stats import ks_2samp
 
 
 def write_to_raw_data():
     # Download data
-    link = "https://docs.google.com/uc?export=download&confirm={{VALUE}}&id=1k5-1caezQ3zWJbKaiMULTGq-3sz6uThC"
-    response = requests.get(link)
-    csv_content = response.content.decode('utf-8')
-    csv_file = StringIO(csv_content)
-    df = pd.read_csv(csv_file)
-    # Split the data into train_val and test sets (70% and 30%)
-    train, val_test = train_test_split(df, test_size=0.3, random_state=42)
+    COLUMN_NAMES = ["brokered_by",
+                    "status",
+                    "price",
+                    "bed",
+                    "bath",
+                    "acre_lot",
+                    "street",
+                    "city",
+                    "state",
+                    "zip_code",
+                    "house_size",
+                    "prev_sold_date"]
+    
+        # Configuración del logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
-    # Split the val_test set into validation and test sets (15% and 15%)
-    validation, test = train_test_split(val_test, test_size=0.5, random_state=42)
+    url = "http://10.43.101.149/data"
+    params = {'group_number': '2'}
+    headers = {'accept': 'application/json'}
 
-    # Add a 'type' column to identify the data split
-    train['type'] = 'train'
-    validation['type'] = 'validation'
-    test['type'] = 'test'
-    # Conection to MySql 
-    conn = mysql.connector.connect(
-        host="mysql",
-        user="airflow",
-        password="airflow",
-        database="airflow"
-    )
-    cursor = conn.cursor()
-    engine = create_engine("mysql+mysqlconnector://airflow:airflow@mysql/airflow")
+    response = requests.get(url, params=params, headers=headers)
 
-    # To sql
-    train.to_sql('raw_data', con=engine, if_exists='replace', index=False, chunksize = 15000)
+    if response.status_code == 200:
+        json_data = response.json()
+        df = pd.DataFrame.from_dict(json_data["data"])
+        df.columns = COLUMN_NAMES
+        df["batch_number"] = json_data["batch_number"]   
 
-    # Confirm and close
-    conn.commit()
-    conn.close()
+        # Connect to MySQL and create table if not exists
+        engine = create_engine("mysql+mysqlconnector://airflow:airflow@mysql/airflow")
+        with engine.connect() as conn:
+            table_exists = engine.dialect.has_table(conn, 'raw_data')
+            if not table_exists:
+                print("No existe la tabla")
+                df.iloc[:0].to_sql('raw_data', con=engine, if_exists='replace', index=False)
+            # Merge data into the table
+            df.to_sql('raw_data', con=engine, if_exists='append', index=False, chunksize=10000)
+
+    else:
+        logger.error("Error al realizar la solicitud: %d", response.status_code)
+
 
 def write_to_clean_data():
     # Conexion a la bd
@@ -66,119 +81,317 @@ def write_to_clean_data():
     cursor = conn.cursor()
     engine = create_engine("mysql+mysqlconnector://airflow:airflow@mysql/airflow")
 
-    # Ejecuta sql e inserta en un df
-    query = "SELECT * FROM raw_data WHERE type = 'train';"
+    # Ejecuta sql
+    query = """
+            WITH max_batch AS (
+                SELECT *,
+                MAX(batch_number) OVER () AS max_batch_number
+                FROM raw_data
+            )
+            SELECT
+            *
+            FROM max_batch
+            WHERE batch_number = max_batch_number        
+            ;
+            """
     df = pd.read_sql_query(query, conn)
 
-    # Representar adecuadamente los nan
-    df = df.replace("?",np.nan)
-    # Se dropean columnas con nan
-    df.drop(['weight','payer_code','medical_specialty'], axis=1, inplace=True)
-    # Dropear observaciones 'Unknown/Invalid' 
-    invalid_rows = df[df.isin(['Unknown/Invalid'])].any(axis=1)
-    df = df[~invalid_rows].copy()    
-    # Se dropean los duplicados por paciente y se deja el primero
-    df.drop_duplicates(subset ="patient_nbr", keep = "first", inplace = True)
-    # Dropear columnas con valores unicos = 1
-    df.drop(['examide','citoglipton','glimepiride-pioglitazone','max_glu_serum','A1Cresult'], axis='columns', inplace=True)
+    CATEGORICAL_FEATURES = ["brokered_by",
+                            "status",
+                            "street",
+                            "city",
+                            "state",
+                            "zip_code",
+                            "prev_sold_date"]
 
-    # Conection to MySql 
-    df.to_sql('clean_data', con=engine, if_exists='replace', index=False)
+    NUMERICAL_FEATURES = ["price",
+                        "bed",
+                        "bath",
+                        "acre_lot",
+                        "house_size"]
+    
+    # Impute missing values for categorical features with the mode
+    for feature in CATEGORICAL_FEATURES:
+        mode_value = df[feature].mode()[0]
+        df[feature].fillna(mode_value, inplace=True)
 
+    # Impute missing values for numerical features with the median
+    for feature in NUMERICAL_FEATURES:
+        median_value = df[feature].median()
+        df[feature].fillna(median_value, inplace=True)
+        
+    # Record the initial number of rows
+    initial_rows = df.shape[0]
+
+    # Remove values outside the 0.25th and 99.95th percentiles
+    for feature in NUMERICAL_FEATURES:
+        lower_bound = df[feature].quantile(0.0025)
+        upper_bound = df[feature].quantile(0.9995)
+        df = df[(df[feature] >= lower_bound) & (df[feature] <= upper_bound)]
+
+    # Record the number of rows after filtering
+    final_rows = df.shape[0]
+
+    # Calculate the number of rows and percentage of rows eliminated
+    rows_eliminated = initial_rows - final_rows
+    percent_eliminated = (rows_eliminated / initial_rows) * 100
+
+    # Display the filtered DataFrame and the elimination stats
+    print(f"Number of rows eliminated: {rows_eliminated}")
+    print(f"Percentage of rows eliminated: {percent_eliminated:.2f}%")
+    
+    # Unique key columns
+    unique_key = ['street', 'city', 'state', 'zip_code', 'price', 'brokered_by']
+    initial_size = len(df)
+    # Sort DataFrame by 'prev_sold_date' in descending order
+    df = df.copy().sort_values(by='prev_sold_date', ascending=False)
+
+    # Drop duplicates based on unique key and keep the last occurrence
+    df = df.copy().drop_duplicates(subset=unique_key, keep='last')
+    size_no_duplicates = len(df)
+    # Count the number of duplicates
+    num_duplicates = size_no_duplicates - initial_size
+
+    # Calculate the percentage of duplicates
+    percent_duplicates = (num_duplicates / initial_size) * 100
+
+    # Display the number and percentage of duplicates
+    print(f"Number of duplicates: {num_duplicates}")
+    print(f"Percentage of duplicates: {percent_duplicates:.2f}%")
+    
+    # Check table existence and insert data
+    with engine.connect() as conn:
+        table_exists = engine.dialect.has_table(conn, 'clean_data')
+        if not table_exists:
+            print("La tabla 'clean_data' no existe.")
+            df.iloc[:0].to_sql('clean_data', con=engine, if_exists='replace', index=False)
+        else:
+            conn = mysql.connector.connect(host="mysql",user="airflow",password="airflow",database="airflow")        
+            existing_batches_query = "SELECT DISTINCT batch_number FROM clean_data;"
+            existing_batches = pd.read_sql_query(existing_batches_query, conn)
+            existing_batches_set = set(existing_batches['batch_number'])                
+            
+            # Filter DataFrame to only include rows with batch_numbers not in clean_data
+            df_to_insert = df[~df['batch_number'].isin(existing_batches_set)]
+
+            # Insert data into the table
+            if not df_to_insert.empty:
+                df_to_insert.to_sql('clean_data', con=engine, if_exists='append', index=False, chunksize=10000)
+                print("Datos insertados en 'clean_data'.")
+            else:
+                print("No hay nuevos datos para insertar en 'clean_data'.")
+            
     # Confirm and close
     conn.commit()
     conn.close()
+    
+    
+def perform_distribution_test(df, column, batch_num1, batch_num2):
+    sample1 = df[df["batch_number"] == batch_num1][column]
+    sample2 = df[df["batch_number"] == batch_num2][column]
+    _, p_value = ks_2samp(sample1, sample2)
+    return p_value
 
 def train_models():
 
     os.environ['MLFLOW_S3_ENDPOINT_URL'] = "http://minio:9000"
     os.environ['AWS_ACCESS_KEY_ID'] = 'admin'
     os.environ['AWS_SECRET_ACCESS_KEY'] = 'supersecret'
-    mlflow.set_tracking_uri("http://10.43.101.151:8087")
+    mlflow.set_tracking_uri("http://mlflow:8087")
     mlflow.set_experiment("mlflow_tracking_examples")
 
     # Conexion a la bd
     conn = mysql.connector.connect(
-        host="mysql",
-        user="airflow",
-        password="airflow",
-        database="airflow"
+    host="mysql",
+    user="airflow",
+    password="airflow",
+    database="airflow"
     )
 
-    cursor = conn.cursor()
-    engine = create_engine("mysql+mysqlconnector://airflow:airflow@mysql/airflow")
-
-    query = "SELECT * FROM clean_data"
-    df = pd.read_sql_query(query, conn)
-    conn.commit()
+    query = """
+            WITH all_data AS (
+                SELECT *,
+                MAX(batch_number) OVER () AS last_batch_number
+                FROM clean_data
+            )
+            , last_two_batch AS (
+                SELECT last_batch_number, (last_batch_number - 1) AS previous_batch_number FROM all_data
+            )
+            SELECT
+                *
+            FROM all_data
+            WHERE batch_number IN (SELECT last_batch_number FROM last_two_batch)
+            OR batch_number IN (SELECT previous_batch_number FROM last_two_batch);
+            """
+    df = pd.read_sql(query, con=conn)
     conn.close()
+    
+    MAX_BATCH_NUMBER = max(df["batch_number"])
+    PREVIOUS_MAX_BATCH_NUMBER = MAX_BATCH_NUMBER - 1
 
-    categorical_features = ['race', 'gender', 'age', 'admission_type_id','discharge_disposition_id', 
-                            'admission_source_id','metformin', 'repaglinide', 
-                            'nateglinide', 'chlorpropamide', 'glimepiride', 'acetohexamide', 'glipizide',
-                            'glyburide', 'tolbutamide', 'pioglitazone', 'rosiglitazone', 'acarbose',
-                            'miglitol', 'troglitazone', 'tolazamide', 'insulin', 'glyburide-metformin', 
-                            'glipizide-metformin', 'metformin-rosiglitazone', 'metformin-pioglitazone',
-                            'change', 'diabetesMed', 'diag_1', 'diag_2','diag_3'
-                        ]
+    CATEGORICAL_FEATURES = ["brokered_by",
+                            "status",
+                            "city",
+                            "state",
+                            "zip_code"]
 
-    numerical_features = ['time_in_hospital', 'num_lab_procedures', 'num_procedures', 'num_medications', 
-                        'number_outpatient', 'number_emergency','number_inpatient', 'number_diagnoses']
+    NUMERICAL_FEATURES = ["bed",
+                        "bath",
+                        "acre_lot",
+                        "house_size"]
 
-    target = "readmitted"
-    all_features = categorical_features + numerical_features
+    ALL_FEATURES = CATEGORICAL_FEATURES + NUMERICAL_FEATURES
 
-    X_train = df[all_features]
+    TARGET = "price"
+    
+    # Calculate sizes of the batches
+    size_current = len(df[df["batch_number"] == MAX_BATCH_NUMBER])
+    size_previous = len(df[df["batch_number"] == PREVIOUS_MAX_BATCH_NUMBER])
 
-    target_encoder = LabelEncoder()
-    y_train = target_encoder.fit_transform(df[target]).ravel()
+    # Initialize a flag to check if any p_value is less than 0.05
+    significant_difference = False
 
+    # Condition 1
+    if MAX_BATCH_NUMBER == 1:
+        # Continue with the rest of the notebook
+        pass
+    # Condition 2
+    elif size_current >= 0.1 * size_previous:
+        # Perform distribution difference test for NUMERICAL_NUMBERS
+        for column in NUMERICAL_FEATURES:
+            p_value = perform_distribution_test(df, column, MAX_BATCH_NUMBER, PREVIOUS_MAX_BATCH_NUMBER)
+            if p_value < 0.05:  # Assuming significance level of 0.05
+                # At least one column has a significant difference in distribution
+                # Print the column name
+                print(f"Column '{column}' has a significant difference in distribution.")
+                # Set the flag to True
+                significant_difference = True
+                # No further testing needed, break out of the loop
+                break
+            if not significant_difference:
+                raise SystemExit()
+    else:
+        raise SystemExit()
+    
+    all_df = df[df["batch_number"] == MAX_BATCH_NUMBER]
+
+    # Set the target values
+    y = all_df['price']#.values
+
+    # Set the input values
+    X = all_df[ALL_FEATURES]
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+    
+    # Define preprocessing steps for categorical variables
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+        ('imputer', SimpleImputer(strategy='most_frequent')),  # Impute with mode
+        ('target_encoder', TargetEncoder())  # Target encoding
     ])
 
+    # Define preprocessing steps for numerical variables
     numerical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', StandardScaler())
+        ('imputer', SimpleImputer(strategy='median')),  # Impute with median
+        ('scaler', StandardScaler())  # StandardScaler
     ])
 
+    # Combine preprocessing steps for both categorical and numerical features
     preprocessor = ColumnTransformer(
         transformers=[
-            ('cat', categorical_transformer, categorical_features),
-            ('num', numerical_transformer, numerical_features)
+            ('cat', categorical_transformer, CATEGORICAL_FEATURES),
+            ('num', numerical_transformer, NUMERICAL_FEATURES)
         ])
 
-    models = {
-        'RandomForestClassifier': RandomForestClassifier(),
-        'DecisionTreeClassifier': DecisionTreeClassifier(),
-    }
+    # Create the pipeline
+    pipeline = Pipeline(steps=[
+        ('preprocessor', preprocessor)
+    ])
 
-    param_grids = {
-        'RandomForestClassifier': {
-            'max_depth': [1, 2, 3, 10],
-            'n_estimators': [10, 11]
-        },
-        'DecisionTreeClassifier': {
-            'max_depth': [None, 1, 2, 3]
-        }
-    }
+    # Fit and transform the data
+    X_train_preprocessed = pipeline.fit_transform(X_train, y_train)
+    X_test_preprocessed = pipeline.transform(X_test)
+    
+    # Benchmark model
 
-    for model_name, model in models.items():
-        pipe = Pipeline(steps=[
-            ('preprocessor', preprocessor),
-            ('classifier', model)
+    # Train ElasticNet model with default parameters
+    elasticnet_model = ElasticNet()
+    elasticnet_model.fit(X_train_preprocessed, y_train)
+    elasticnet_y_pred = elasticnet_model.predict(X_test_preprocessed)
+    elasticnet_mae = mean_absolute_error(y_test, elasticnet_y_pred)
+
+    # Train DecisionTreeRegressor model with default parameters
+    decisiontree_model = DecisionTreeRegressor()
+    decisiontree_model.fit(X_train_preprocessed, y_train)
+    decisiontree_y_pred = decisiontree_model.predict(X_test_preprocessed)
+    decisiontree_mae = mean_absolute_error(y_test, decisiontree_y_pred)
+
+    # Train RandomForestRegressor model with default parameters
+    randomforest_model = RandomForestRegressor()
+    randomforest_model.fit(X_train_preprocessed, y_train)
+    randomforest_y_pred = randomforest_model.predict(X_test_preprocessed)
+    randomforest_mae = mean_absolute_error(y_test, randomforest_y_pred)
+
+    # Choose the model with the lowest MAE
+    best_model = None
+    if elasticnet_mae <= decisiontree_mae and elasticnet_mae <= randomforest_mae:
+        best_model = elasticnet_model
+    elif decisiontree_mae <= elasticnet_mae and decisiontree_mae <= randomforest_mae:
+        best_model = decisiontree_model
+    else:
+        best_model = randomforest_model
+
+    print("Best model:", best_model)
+    
+    best_model.fit(X_train_preprocessed, y_train)
+    
+    random_indices = np.random.choice(len(X_train_preprocessed), size=200, replace=False)
+    X_subset = X_train_preprocessed[random_indices]
+    
+    # Prod model
+    # Define preprocessing steps for categorical variables
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),  # Impute with mode
+        ('target_encoder', TargetEncoder())  # Target encoding
+    ])
+
+    # Define preprocessing steps for numerical variables
+    numerical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),  # Impute with median
+        ('scaler', StandardScaler())  # StandardScaler
+    ])
+
+    # Combine preprocessing steps for both categorical and numerical features
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('cat', categorical_transformer, CATEGORICAL_FEATURES),
+            ('num', numerical_transformer, NUMERICAL_FEATURES)
         ])
-        
-        param_grid = {'classifier__' + key: value for key, value in param_grids[model_name].items()}
-        
-        search = GridSearchCV(pipe, param_grid, n_jobs=-3)
 
-        with mlflow.start_run(run_name=f"autolog_pipe_{model_name}") as run:
-            search.fit(X_train, y_train)
-            mlflow.log_params(param_grid)
-            mlflow.log_metric("best_cv_score", search.best_score_)
-            mlflow.log_params("best_params", search.best_params_)
+    # Create the pipeline with preprocessing and model
+    pipeline = Pipeline(steps=[
+        ('preprocessor', preprocessor),
+        ('model', best_model)  # assuming best_model is already trained
+    ])
+    # Train
+    pipeline.fit(X_train, y_train)
+
+    # for model_name, model in models.items():
+    #     pipe = Pipeline(steps=[
+    #         ('preprocessor', preprocessor),
+    #         ('classifier', model)
+    #     ])
+        
+    #     param_grid = {'classifier__' + key: value for key, value in param_grids[model_name].items()}
+        
+    #     search = GridSearchCV(pipe, param_grid, n_jobs=-3)
+
+    #     with mlflow.start_run(run_name=f"autolog_pipe_{model_name}") as run:
+    #         search.fit(X_train, y_train)
+    #         mlflow.log_params(param_grid)
+    #         mlflow.log_metric("best_cv_score", search.best_score_)
+    #         mlflow.log_params("best_params", search.best_params_)
+    
+    
 
 
 default_args = {
