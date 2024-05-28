@@ -16,7 +16,7 @@ x-airflow-common:
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     #_PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- mysql-connector-python numpy pandas fastapi scikit-learn joblib uvicorn mlflow}
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-dill==0.3.8 fastapi==0.109.2 joblib==1.4.2 mlflow==2.13.0 mysql-connector-python==8.4.0 pandas==1.5.3 requests==2.32.2 scikit-learn==1.2.2 scipy shap uvicorn==0.27.1}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-dill==0.3.8 fastapi==0.109.2 joblib==1.4.2 mlflow==2.13.0 mysql-connector-python==8.4.0 pandas==1.5.3 requests==2.32.2 scikit-learn==1.2.2 scipy shap uvicorn==0.27.1 category-encoders==2.6.3}
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
