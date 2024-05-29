@@ -9,6 +9,7 @@ import mysql.connector
 import pandas as pd
 import requests
 from io import StringIO
+import shap
 from sqlalchemy import create_engine, inspect
 import logging
 from category_encoders import TargetEncoder
@@ -22,6 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 from scipy.stats import ks_2samp
+from sqlalchemy import create_engine, inspect
 
 
 def write_to_raw_data():
@@ -197,7 +199,7 @@ def train_models():
     os.environ['MLFLOW_S3_ENDPOINT_URL'] = "http://minio:9000"
     os.environ['AWS_ACCESS_KEY_ID'] = 'admin'
     os.environ['AWS_SECRET_ACCESS_KEY'] = 'supersecret'
-    mlflow.set_tracking_uri("http://mlflow:8087")
+    mlflow.set_tracking_uri("http://mlflow:5000")
     mlflow.set_experiment("mlflow_tracking_examples")
 
     # Conexion a la bd
@@ -342,10 +344,17 @@ def train_models():
 
     print("Best model:", best_model)
     
+    # Retrain the best model on the entire training data
     best_model.fit(X_train_preprocessed, y_train)
+    y_pred = best_model.predict(X_test_preprocessed)
+    best_model_mae = mean_absolute_error(y_test, y_pred)
     
-    random_indices = np.random.choice(len(X_train_preprocessed), size=200, replace=False)
+    random_indices = np.random.choice(len(X_train_preprocessed), size=100, replace=False)
     X_subset = X_train_preprocessed[random_indices]
+
+    # Compute SHAP values
+    explainer = shap.Explainer(decisiontree_model)
+    shap_values = explainer.shap_values(X_subset)
     
     # Prod model
     # Define preprocessing steps for categorical variables
@@ -415,4 +424,5 @@ with DAG('main', default_args=default_args, schedule_interval='@once') as dag:
         task_id='train_models_task',
         python_callable=train_models
     )
-write_to_raw_data_task >> write_to_clean_data_task >> train_models_task
+#write_to_raw_data_task >> write_to_clean_data_task >> train_models_task
+write_to_clean_data_task >> train_models_task
