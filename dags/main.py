@@ -24,6 +24,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeRegressor
 from scipy.stats import ks_2samp
 from sqlalchemy import create_engine, inspect
+import matplotlib.pyplot as plt
 
 
 def write_to_raw_data():
@@ -204,11 +205,11 @@ def train_models():
 
     # Conexion a la bd
     conn = mysql.connector.connect(
-    host="mysql",
-    user="airflow",
-    password="airflow",
-    database="airflow"
-    )
+        host="mysql",
+        user="airflow",
+        password="airflow",
+        database="airflow"
+        )
 
     query = """
             WITH all_data AS (
@@ -226,6 +227,7 @@ def train_models():
             OR batch_number IN (SELECT previous_batch_number FROM last_two_batch);
             """
     df = pd.read_sql(query, con=conn)
+    df = df.sample(int(0.2 * len(df))).copy()
     conn.close()
     
     MAX_BATCH_NUMBER = max(df["batch_number"])
@@ -356,6 +358,14 @@ def train_models():
     explainer = shap.Explainer(decisiontree_model)
     shap_values = explainer.shap_values(X_subset)
     
+    shap.summary_plot(shap_values, X_subset, feature_names=X_train.columns, show=False)
+    plt.title("positive and negative impacts")
+    plt.savefig("summary_plot.png",dpi=150, bbox_inches='tight')
+
+    shap.summary_plot(shap_values, plot_type='bar', feature_names=X_train.columns, show=False)
+    plt.title("Average impact")
+    plt.savefig("absolute_bar.png",dpi=150, bbox_inches='tight')
+
     # Prod model
     # Define preprocessing steps for categorical variables
     categorical_transformer = Pipeline(steps=[
@@ -384,24 +394,72 @@ def train_models():
     # Train
     pipeline.fit(X_train, y_train)
 
-    # for model_name, model in models.items():
-    #     pipe = Pipeline(steps=[
-    #         ('preprocessor', preprocessor),
-    #         ('classifier', model)
-    #     ])
-        
-    #     param_grid = {'classifier__' + key: value for key, value in param_grids[model_name].items()}
-        
-    #     search = GridSearchCV(pipe, param_grid, n_jobs=-3)
-
-    #     with mlflow.start_run(run_name=f"autolog_pipe_{model_name}") as run:
-    #         search.fit(X_train, y_train)
-    #         mlflow.log_params(param_grid)
-    #         mlflow.log_metric("best_cv_score", search.best_score_)
-    #         mlflow.log_params("best_params", search.best_params_)
+    conn = mysql.connector.connect(
+        host="mysql",
+        user="airflow",
+        password="airflow",
+        database="airflow"
+        )
     
-    
-
+    # Connect to MySQL and create table if not exists
+    mae_df = pd.DataFrame({
+        "batch_number": [MAX_BATCH_NUMBER],
+        "test_mae": [best_model_mae]
+    })
+    if True:
+        with mlflow.start_run(run_name=f"autolog_pipe_production") as run:
+            mlflow.sklearn.log_model(sk_model=pipeline,artifact_path="model_production",
+                                    registered_model_name="model_production")
+            client = MlflowClient(mlflow.get_tracking_uri())
+            model_info = client.get_latest_versions('model_production')[0]
+            curr_version = model_info.version
+            client.set_model_version_tag(
+                name='model_production',
+                version=model_info.version,
+                key='stage',
+                value='production'
+            )
+            client.set_registered_model_alias(
+                name="model_production",
+                alias="production",
+                version=curr_version
+            )
+        engine = create_engine("mysql+mysqlconnector://airflow:airflow@mysql/airflow")
+        with engine.connect() as conn:
+            table_exists = engine.dialect.has_table(conn, 'mae_data_table')
+            if not table_exists:
+                print("No existe la tabla")
+                mae_df.iloc[:0].to_sql('mae_data_table', con=engine, if_exists='replace', index=False)
+            # Merge data into the table
+            mae_df.to_sql('mae_data_table', con=engine, if_exists='append', index=False, chunksize=10000)    
+    else:
+        query = """
+            SELECT DISTINCT * FROM mae_data_table ORDER BY batch_number ASC;
+            """
+        mae = pd.read_sql(query, con=conn)
+        conn.close()
+        if mae.iloc[-1,1] > best_model_mae:        
+            with mlflow.start_run(run_name=f"autolog_pipe_production") as run:
+                mlflow.sklearn.log_model(sk_model=pipeline,artifact_path="model_production",
+                                        registered_model_name="model_production")
+                client = MlflowClient(mlflow.get_tracking_uri())
+                model_info = client.get_latest_versions('model_production')[0]
+                curr_version = model_info.version
+                client.set_registered_model_alias(
+                    name="model_production",
+                    alias="production",
+                    version=curr_version
+                )
+                client.set_model_version_tag(
+                    name='model_production',
+                    version=model_info.version,
+                    key='stage',
+                    value='production'
+                )
+            engine = create_engine("mysql+mysqlconnector://airflow:airflow@mysql/airflow")
+            with engine.connect() as conn:   
+                # Merge data into the table
+                mae_df.to_sql('mae_data_table', con=engine, if_exists='append', index=False, chunksize=10000)
 
 default_args = {
     'owner': 'airflow',

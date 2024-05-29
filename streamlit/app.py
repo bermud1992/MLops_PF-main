@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-API_URL = "http://fastapi:8000/predict/DecisionTreeClassifier"
+API_URL = "http://fastapi:8000/predict/model_production"
 
 def predict(request_body):
     headers = {
@@ -20,19 +20,14 @@ def main():
     default_values = {
         'brokered_by': 8103.0,
         'status': 'sold',
-        'price': 375900.0,
-        'bed': 3.0,
-        'bath': 1.0,
-        'acre_lot': 1.2,
-        'street': 1467938.0,
         'city': 'Kennett Square',
         'state': 'Pennsylvania',
         'zip_code': 19348.0,
+        'bed': 3.0,
+        'bath': 1.0,
+        'acre_lot': 1.2,
         'house_size': 1995.0,
-        'prev_sold_date': '2022-01-21',
-        'batch_number': 4,
-        'max_batch_number': 4,
-        'last_batch_number': 4
+        'price': 375900.0,
     }
 
     # Crear campos de entrada para cada atributo
@@ -42,10 +37,7 @@ def main():
 
     # Convertir valores a los tipos de datos correctos
     string_columns = ['status', 'city', 'state', 'prev_sold_date']
-    request_body = {
-        key: [int(value)] if key not in string_columns else [value]
-        for key, value in input_values.items()
-    }
+    request_body = {key: [float(value)] if key not in string_columns else [value] for key, value in input_values.items()}
 
     if st.button("Realizar Predicción"):
         st.write("Realizando predicción...")

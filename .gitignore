@@ -4,3 +4,6 @@ minio/.minio.sys/
 pgadmin/data/
 dags/__pycache__/
 myjupyter/.ipynb_checkpoints/
+minio/mlflow/
+myjupyter/absolute_bar.png
+myjupyter/summary_plot.png
