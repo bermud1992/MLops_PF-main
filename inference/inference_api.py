@@ -56,10 +56,11 @@ def predict_model(input_data : PropertyDetails,model_name: str = "modelo_base"):
     os.environ['MLFLOW_S3_ENDPOINT_URL'] = "http://minio:9000"
     os.environ['AWS_ACCESS_KEY_ID'] = 'admin'
     os.environ['AWS_SECRET_ACCESS_KEY'] = 'supersecret'
-    mlflow.set_tracking_uri("mlflow:5000")
-    mlflow.set_experiment("mlflow_tracking_examples")
+    mlflow.set_tracking_uri("http://mlflow:5000")
+    #mlflow.set_experiment("mlflow_tracking_examples")
     model_production_uri = "models:/{model_name}/production".format(model_name=model_name)
-    loaded_model = mlflow.pyfunc.load_model(model_uri=model_production_uri)
+    #loaded_model = mlflow.pyfunc.load_model(model_uri=model_production_uri)
+    loaded_model = mlflow.pyfunc.load_model(f"models:/{model_name}@production")    
     decoded_data = decode_input(input_data)
     prediction = loaded_model.predict(decoded_data)
     prediction_list = prediction.tolist()
