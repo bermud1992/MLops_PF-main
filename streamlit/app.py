@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-API_URL = "http://10.43.101.151:8088/predict/DecisionTreeClassifier"
+API_URL = "http://fastapi:8000/predict/DecisionTreeClassifier"
 
 def predict(request_body):
     headers = {
