@@ -424,5 +424,5 @@ with DAG('main', default_args=default_args, schedule_interval='@once') as dag:
         task_id='train_models_task',
         python_callable=train_models
     )
-#write_to_raw_data_task >> write_to_clean_data_task >> train_models_task
-write_to_clean_data_task >> train_models_task
+write_to_raw_data_task >> write_to_clean_data_task >> train_models_task
+# write_to_clean_data_task >> train_models_task
