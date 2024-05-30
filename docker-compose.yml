@@ -268,8 +268,9 @@ services:
     
   mlflow:
     restart: always
-    build: ./mlflow
-    image: mlflow_server
+    #build: ./mlflow
+    #image: mlflow_server
+    image: marinho14/mlflow 
     container_name: mlflow_server
     depends_on:
         - minio
@@ -283,9 +284,10 @@ services:
     command: mlflow server --backend-store-uri postgresql://airflow:airflow@postgres:5432/mlflow --default-artifact-root s3://mlflow/ --host 0.0.0.0
   
   fastapi:
-    build:
-      context: .
-      dockerfile: inference/Dockerfile
+    #build:
+    #  context: ./inference
+    #  dockerfile: Dockerfile
+    image: marinho14/inference
     ports:
       - "8088:8000"
     volumes:
@@ -310,18 +312,20 @@ services:
       - ./pgadmin/data/:/var/lib/pgadmin
 
   jupyter:
-    build:
-      context: .
-      dockerfile: myjupyter/Dockerfile
+    #build:
+    #  context: ./myjupyter
+    #  dockerfile: Dockerfile
+    image: marinho14/jupyter
     ports:
       - 8888:8888
     volumes:
       - ./myjupyter:/work
 
   streamlit:
-    build:
-      context: ./streamlit
-      dockerfile: Dockerfile
+    #build:
+    #  context: ./streamlit
+    #  dockerfile: Dockerfile
+    image: marinho14/streamlit
     ports:
       - "8082:8082"
     volumes:
