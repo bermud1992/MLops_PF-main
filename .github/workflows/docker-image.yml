@@ -38,7 +38,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./inference
-          file: ./inference/inference.Dockerfile
+          file: ./inference/Dockerfile
           push: true
           tags: marinho14/inference:latest
 
@@ -46,6 +46,6 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./myjupyter
-          file: ./myjupyter/jupyter.Dockerfile
+          file: ./myjupyter/Dockerfile
           push: true
           tags: marinho14/jupyter:latest
