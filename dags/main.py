@@ -13,6 +13,7 @@ import shap
 from sqlalchemy import create_engine, inspect
 import logging
 from category_encoders import TargetEncoder
+from mlflow.client import MlflowClient
 from sklearn.compose import make_column_transformer, ColumnTransformer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer

@@ -4,7 +4,7 @@ FROM python:3.9
 #ARG AWS_SECRET_ACCESS_KEY=supersecret
 RUN mkdir /work
 WORKDIR /work
-COPY myjupyter/requirements.txt /work/requirements.txt
+COPY requirements.txt /work/requirements.txt
 RUN pip install jupyter==1.0.0 -U && pip install jupyterlab==3.6.1
 RUN pip install -r requirements.txt
 ENTRYPOINT ["jupyter", "lab","--ip=0.0.0.0","--allow-root"]
