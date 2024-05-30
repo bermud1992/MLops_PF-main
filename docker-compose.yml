@@ -285,7 +285,7 @@ services:
   fastapi:
     build:
       context: .
-      dockerfile: inference/inference.Dockerfile
+      dockerfile: inference/Dockerfile
     ports:
       - "8088:8000"
     volumes:
@@ -312,7 +312,7 @@ services:
   jupyter:
     build:
       context: .
-      dockerfile: myjupyter/jupyter.dockerfile
+      dockerfile: myjupyter/Dockerfile
     ports:
       - 8888:8888
     volumes:
