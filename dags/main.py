@@ -95,7 +95,7 @@ def write_to_clean_data():
             SELECT
             *
             FROM max_batch
-            WHERE batch_number = max_batch_number        
+            WHERE batch_number = max_batch_number
             ;
             """
     df = pd.read_sql_query(query, conn)
@@ -257,7 +257,7 @@ def train_models():
     significant_difference = False
 
     # Condition 1
-    if MAX_BATCH_NUMBER == 1:
+    if MAX_BATCH_NUMBER == 0:
         # Continue with the rest of the notebook
         pass
     # Condition 2
@@ -407,7 +407,7 @@ def train_models():
         "batch_number": [MAX_BATCH_NUMBER],
         "test_mae": [best_model_mae]
     })
-    if True:
+    if MAX_BATCH_NUMBER == 0:
         with mlflow.start_run(run_name=f"autolog_pipe_production") as run:
             mlflow.sklearn.log_model(sk_model=pipeline,artifact_path="model_production",
                                     registered_model_name="model_production")
@@ -484,4 +484,3 @@ with DAG('main', default_args=default_args, schedule_interval='@once') as dag:
         python_callable=train_models
     )
 write_to_raw_data_task >> write_to_clean_data_task >> train_models_task
-# write_to_clean_data_task >> train_models_task
