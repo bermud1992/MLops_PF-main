@@ -50,29 +50,29 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
 
 9. Ingrese a la interfaz de mlflow a traves de la direccion http://localhost:8087/#/models en esta ventanaencontrara listados los modelos generados y vera que ya cuentan con el alias de produccion que permite distinguirlos de los otros modelos.
 
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflow1.png) 
+![Imagen publicada en Dockerhub](images/mlflow1.png) 
 
  Alli vera los modelos registrados automaticamente:
 
- ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflow_registrado.jpeg) 
+ ![Imagen publicada en Dockerhub](images/mlflow_registrado.jpeg) 
 
 10. Ingresar a la url http://localhost:8082/ , en esta direccion se encuentra alojada la aplicacion streamlit en la cual se encuentra la siguiente interfaz grafica:
 
 
    En esta interfaz puede modificar los datos de prediccion o dejar los ya existentes, una vez ha revisado / modificado los datos para predecir puede hacer clic en el boton "realizar prediccion". El sistema devolvera una estructura Json donde encontrara el nombre del modelo utilizado y el valor predicho como se observa en la imagen:
 
-   ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/streamlit_app.jpeg) 
+  ![Imagen publicada en Dockerhub](images/streamlit_app.jpeg) 
 
    Se veran las imagenes registradas en Dockerhub:
    
-   ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/dockerhub-registered.jpeg) 
+   ![Imagen publicada en Dockerhub](images/dockerhub-registered.jpeg) 
    
 
 
 11. Ingrese a http://localhost:8080/  para ingresar a Airflow y observar los dags: 
 
-   ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/dags.jpeg) 
+   ![Imagen publicada en Dockerhub](images/dags.jpeg) 
 
 12. Si hace push githib actioons volvera a publicar las iamgenes cargadas, esto se vera de la interfaz de github web.
 
-   ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/github_actions.jpeg) 
+   ![Imagen publicada en Dockerhub](images/github_actions.jpeg) 
