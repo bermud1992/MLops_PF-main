@@ -50,8 +50,6 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
 
 9. Ingrese a la interfaz de mlflow a traves de la direccion http://localhost:8087/#/models en esta ventanaencontrara listados los modelos generados y vera que ya cuentan con el alias de produccion que permite distinguirlos de los otros modelos.
 
-![Imagen publicada en Dockerhub](images/mlflow1.png) 
-
  Alli vera los modelos registrados automaticamente:
 
  ![I](images/mlflow_registrado.jpeg) 
