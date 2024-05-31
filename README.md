@@ -52,26 +52,9 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
 
 ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflow1.png) 
 
- En caso de no tener modelos registrados, el procedimiento es el siguiente:
- 
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr1.png)  <br />
+ Alli vera los modelos registrados automaticamente:
 
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr2.png)  <br />
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr3.png)  <br />
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr4.png)  <br />
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr5.png)  <br />
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr6.png)  <br />
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr7.png)  <br />
-
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflowr8.png)  <br />
-
-![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/github_actions.jpeg)  <br />
+ ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/mlflow_registrado.jpeg) 
 
 10. Ingresar a la url http://localhost:8082/ , en esta direccion se encuentra alojada la aplicacion streamlit en la cual se encuentra la siguiente interfaz grafica:
 
@@ -79,6 +62,11 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
    En esta interfaz puede modificar los datos de prediccion o dejar los ya existentes, una vez ha revisado / modificado los datos para predecir puede hacer clic en el boton "realizar prediccion". El sistema devolvera una estructura Json donde encontrara el nombre del modelo utilizado y el valor predicho como se observa en la imagen:
 
    ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/streamlit_app.jpeg) 
+
+   Se veran las imagenes registradas en Dockerhub:
+   
+   ![alt text](https://github.com/bermud1992/MLOps_P3/blob/main/images/dockerhub-registered.jpeg) 
+   
 
 
 11. Ingrese a http://localhost:8080/  para ingresar a Airflow y observar los dags: 
