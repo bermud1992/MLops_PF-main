@@ -54,7 +54,7 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
 
  Alli vera los modelos registrados automaticamente:
 
- ![Imagen publicada en Dockerhub](images/mlflow_registrado.jpeg) 
+ ![I](images/mlflow_registrado.jpeg) 
 
 10. Ingresar a la url http://localhost:8082/ , en esta direccion se encuentra alojada la aplicacion streamlit en la cual se encuentra la siguiente interfaz grafica:
 
