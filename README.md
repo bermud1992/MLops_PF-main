@@ -63,11 +63,6 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
 
   ![Imagen publicada en Dockerhub](images/streamlit_app.jpeg) 
 
-   Se veran las imagenes registradas en Dockerhub:
-   
-   ![Imagen publicada en Dockerhub](images/dockerhub-registered.jpeg) 
-   
-
 
 11. Ingrese a http://localhost:8080/  para ingresar a Airflow y observar los dags: 
 
@@ -76,3 +71,8 @@ Una vez esta ejecucion termine con las 3 cajas del grafo en status success el mo
 12. Si hace push githib actioons volvera a publicar las iamgenes cargadas, esto se vera de la interfaz de github web.
 
    ![Imagen publicada en Dockerhub](images/github_actions.jpeg) 
+
+      Se veran las imagenes registradas en Dockerhub:
+   
+   ![Imagen publicada en Dockerhub](images/dockerhub-registered.jpeg) 
+   
